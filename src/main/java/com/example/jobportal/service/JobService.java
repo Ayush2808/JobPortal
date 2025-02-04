@@ -22,11 +22,13 @@ public class JobService {
         job.setCompany(dto.getCompany());
         job.setLocation(dto.getLocation());
         job.setRequiredSkills(dto.getRequiredSkills());
-        return jobRepository.save(job);
+        job.setSalary(dto.getSalary());
+
+        Job savedJob = jobRepository.save(job);
+        return savedJob;
     }
 
     public List<Job> getJobsByLocationAndSkills(String location, String skills) {
         return jobRepository.findByLocationAndRequiredSkillsContaining(location, skills);
     }
 }
-

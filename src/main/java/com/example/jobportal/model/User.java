@@ -19,6 +19,7 @@ public class User {
     private String skills;
     private String location;
 
+
     // ✅ Manually add missing setter methods
     public void setUsername(String username) {
         this.username = username;

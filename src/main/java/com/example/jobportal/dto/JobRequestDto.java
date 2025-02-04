@@ -11,6 +11,7 @@ public class JobRequestDto {
     private String company;
     private String location;
     private String requiredSkills;
+    private double salary;
 
     // ✅ Manually add getter methods if needed
     public String getTitle() {
@@ -31,6 +32,9 @@ public class JobRequestDto {
 
     public String getRequiredSkills() {
         return requiredSkills;
+    }
+    public double getSalary() {
+        return salary;
     }
 }
 
