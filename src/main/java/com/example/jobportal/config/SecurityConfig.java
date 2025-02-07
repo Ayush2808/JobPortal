@@ -1,7 +1,9 @@
 package com.example.jobportal.config;
 
+import com.example.jobportal.security.JwtFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -15,26 +17,29 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
 
+    private final JwtFilter jwtFilter;
+
+    public SecurityConfig(@Lazy JwtFilter jwtFilter) {
+        this.jwtFilter = jwtFilter;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable()) // Disable CSRF for API-based applications
-                .cors() // Enable CORS support
-                .and()
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless session
+        return http
+                .csrf(csrf -> csrf.disable()) // Disable CSRF for APIs
+                .cors(cors -> {}) // Enable CORS with default settings
+                .sessionManagement(sess ->
+                        sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless sessions
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll() // Allow authentication endpoints
-                        .requestMatchers(HttpMethod.GET, "/jobs/**").permitAll() // Allow public job listings
-                        .requestMatchers(HttpMethod.POST, "/jobs/**").authenticated() // Only authenticated users can post jobs
-                        .requestMatchers(HttpMethod.PUT, "/jobs/**").authenticated() // Only authenticated users can update jobs
-                        .requestMatchers(HttpMethod.DELETE, "/jobs/**").authenticated() // Only authenticated users can delete jobs
-                        .anyRequest().authenticated() // Secure all other endpoints
+                        .requestMatchers("/auth/**", "/error").permitAll() // Allow auth and error endpoints
+                        .requestMatchers(HttpMethod.GET, "/jobs/**").permitAll() // Allow GET requests for jobs
+                        .requestMatchers(HttpMethod.POST, "/jobs/**", "/apply/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/jobs/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/jobs/**").authenticated()
+                        .anyRequest().authenticated()
                 )
-        // Uncomment if using JWT authentication
-        // .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-        ;
-
-        return http.build();
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
 
     @Bean
