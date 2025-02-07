@@ -36,6 +36,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/jobs/**", "/apply/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/jobs/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/jobs/**").authenticated()
+                        .requestMatchers("/redis/**").permitAll()  // ✅ Allow Redis API access
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

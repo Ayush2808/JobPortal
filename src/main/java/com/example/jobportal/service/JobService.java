@@ -1,23 +1,33 @@
 package com.example.jobportal.service;
 
-
-
 import com.example.jobportal.dto.JobRequestDto;
 import com.example.jobportal.model.Job;
 import com.example.jobportal.repository.JobRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class JobService {
     @Autowired
     private JobRepository jobRepository;
 
-    public Job createJob(JobRequestDto dto) {
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private static final String REDIS_KEY_PREFIX = "job:";
+
+    public Job createJob(JobRequestDto dto) throws JsonProcessingException {
         Job job = new Job();
         job.setTitle(dto.getTitle());
         job.setDescription(dto.getDescription());
@@ -27,6 +37,10 @@ public class JobService {
         job.setSalary(dto.getSalary());
 
         Job savedJob = jobRepository.save(job);
+
+        // Cache the job in Redis
+        stringRedisTemplate.opsForValue().set(REDIS_KEY_PREFIX + savedJob.getId(), objectMapper.writeValueAsString(savedJob), 10, TimeUnit.MINUTES);
+
         return savedJob;
     }
 
@@ -34,49 +48,53 @@ public class JobService {
         return jobRepository.findByLocationAndRequiredSkillsContaining(location, skills);
     }
 
+    public Job getJobById(Long id) throws JsonProcessingException {
+        // Try fetching from Redis first
+        String jobJson = stringRedisTemplate.opsForValue().get(REDIS_KEY_PREFIX + id);
+        if (jobJson != null) {
+            return objectMapper.readValue(jobJson, Job.class);
+        }
+
+        // If not in Redis, fetch from database
+        Optional<Job> optionalJob = jobRepository.findById(id);
+        return optionalJob.orElse(null);
+    }
+
     @Transactional
-    public Job updateJob(Long id, JobRequestDto dto) {
+    public Job updateJob(Long id, JobRequestDto dto) throws JsonProcessingException {
         Optional<Job> optionalJob = jobRepository.findById(id);
 
         if (optionalJob.isPresent()) {
             Job job = optionalJob.get();
 
-            // Log the initial job data
-            System.out.println("Existing Job before update: " + job);
-
-            // Update only the fields that are not null
             if (dto.getTitle() != null) {
                 job.setTitle(dto.getTitle());
             }
-
             if (dto.getDescription() != null) {
                 job.setDescription(dto.getDescription());
             }
-
             if (dto.getLocation() != null) {
                 job.setLocation(dto.getLocation());
             }
-
-            if (dto.getSalary() != 0) { // Assuming salary is a valid number (you can modify this logic if salary can be zero)
+            if (dto.getSalary() != 0) {
                 job.setSalary(dto.getSalary());
             }
-
             if (dto.getCompany() != null) {
                 job.setCompany(dto.getCompany());
             }
-
             if (dto.getRequiredSkills() != null) {
                 job.setRequiredSkills(dto.getRequiredSkills());
             }
 
-            // Log the updated job data
-            System.out.println("Updated Job: " + job);
+            Job updatedJob = jobRepository.save(job);
 
-            // Save the updated job
-            return jobRepository.save(job);
+            // Update cache in Redis
+            stringRedisTemplate.opsForValue().set(REDIS_KEY_PREFIX + updatedJob.getId(), objectMapper.writeValueAsString(updatedJob), 10, TimeUnit.MINUTES);
+
+            return updatedJob;
         }
 
-        return null; // If job not found, return null
+        return null;
     }
 
     @Transactional
@@ -85,11 +103,10 @@ public class JobService {
 
         if (optionalJob.isPresent()) {
             jobRepository.deleteById(id);
-            return true; // Job deleted successfully
+            // Remove from Redis cache
+            stringRedisTemplate.delete(REDIS_KEY_PREFIX + id);
+            return true;
         }
-
-        return false; // Job not found
+        return false;
     }
-
-
 }
